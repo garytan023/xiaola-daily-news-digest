@@ -14,11 +14,13 @@ from collections import defaultdict
 import re, html, os
 
 OPML_FILE = os.path.expanduser('~/.openclaw/workspace-dev/data/wechat_rss_subscriptions.opml')
-OUTPUT_FILE = os.path.expanduser('~/.openclaw/workspace-dev/output/rss_daily_2026-04-11.md')
-os.makedirs(os.path.dirname(OUTPUT_FILE), exist_ok=True)
-
 TIMEOUT = 12
 CST = timezone(timedelta(hours=8))
+YESTERDAY = datetime.now(CST) - timedelta(days=1)
+YD_STR = YESTERDAY.strftime('%Y-%m-%d')
+YD_SHORT = YESTERDAY.strftime('%m-%d')
+OUTPUT_FILE = os.path.expanduser(f'~/.openclaw/workspace-dev/output/rss_daily_{YD_STR}.md')
+os.makedirs(os.path.dirname(OUTPUT_FILE), exist_ok=True)
 ATOM_NS = 'http://www.w3.org/2005/Atom'
 CONTENT_NS = 'http://purl.org/rss/1.0/modules/content/'
 
@@ -252,8 +254,8 @@ for cat in CAT_ORDER:
 
 # 生成 Markdown
 lines = [
-    "# 每日资讯精选 | 2026-04-11（昨日）\n",
-    f"\n> 共抓取 **{len(all_items)}** 条 \\| 昨日去重 **67** 条 \\| 排他分类 **67** 条\n",
+    f'# 每日资讯精选 | {YD_STR}（昨日）\n',
+    f"\n> 共抓取 **{len(all_items)}** 条 \\| 昨日去重 **{len(all_items)}** 条 \\| 排他分类 **{len(recent)}** 条\n",
     "> 评分：营销洞察/案例(0-3) + 媒介投放(0-2) + 电商运营(0-2) + AI营销(0-2) + 内容质量(0-1)\n",
     "> 注：微信 RSS 不暴露阅读量等指标；若有数据均为文章正文中显式提及\n",
     "\n---\n",
