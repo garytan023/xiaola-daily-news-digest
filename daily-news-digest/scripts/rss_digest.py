@@ -28,6 +28,7 @@ CAT_EMOJI = {
     '京东': '🟣', '字节': '🔵', '小红书': '🔴', '腾讯': '🟢', '百度': '⚪',
     '营销+AI': '🤖', '电商零售': '🛒', '营销增长': '📈'
 }
+# 平台分类只接收官方账号；第三方账号全部进入 topic 分类
 CAT_ORDER = ['京东', '字节', '小红书', '腾讯', '百度', '营销+AI', '电商零售', '营销增长']
 
 # 来源账号 → 平台官方分类（优先级最高）
@@ -69,22 +70,16 @@ def parse_date(text):
             return None
 
 def classify(title, content, source):
-    """排他性分类（按内容关键词）：
-    平台关键词优先 → topic关键词 → 营销增长兜底
+    """排他性分类：
+    - 官方平台账号（SOURCE_PLATFORM_MAP） → 对应平台分类
+    - 其他账号 → 按内容关键词分入 topic 分类（京东/字节/小红书/百度只接收官方账号）
     """
+    # 官方平台账号优先 → 进入平台分类
+    if source in SOURCE_PLATFORM_MAP:
+        return SOURCE_PLATFORM_MAP[source]
+    # 第三方账号 → 只能进入 topic 分类
     t = (title or '').lower()
     c = ((content or '')[:3000]).lower()
-    # 平台关键词（排他）
-    if any(k in t or k in c for k in ['京东', 'jd.com', '京东物流', '京东黑板']):
-        return '京东'
-    if any(k in t or k in c for k in ['字节', '抖音', 'douyin', 'tiktok', '巨量引擎', '千川', 'dou+', '鲁班', 'tiktok']):
-        return '字节'
-    if any(k in t or k in c for k in ['小红书', 'xhs', 'redtech']):
-        return '小红书'
-    if any(k in t or k in c for k in ['腾讯', '微信', 'wechat', '朋友圈', '小程序']):
-        return '腾讯'
-    if any(k in t or k in c for k in ['百度', 'baidu']):
-        return '百度'
     # topic 关键词（排他）
     if any(k in t or k in c for k in ['ai', '人工智能', 'gpt', '大模型', '自动化', 'aigc', '数字人',
                                           'deepseek', 'chatgpt', '智能投放', 'geo', 'ai营销', 'claude',
@@ -92,7 +87,7 @@ def classify(title, content, source):
         return '营销+AI'
     if any(k in t or k in c for k in ['电商', '零售', '直播带货', '天猫', '淘宝', '选品', '跨境',
                                           '亚马逊', 'shopify', '私域', '拼多多', '唯品会', '即时零售',
-                                          '货架电商', '跨境电商', '电商平台', '电商运营']):
+                                          '货架电商', '跨境电商', '电商平台', '电商运营', '京东', 'jd.com']):
         return '电商零售'
     return '营销增长'
 
@@ -303,15 +298,27 @@ lines = [
 ]
 
 MIN_SCORE = 3  # 低于此分的文章不进入精选
+MAX_TOTAL = 40  # 精选总条数上限
 
+# 收集所有精选，再全局截断
+all_qualified = []
 for cat in CAT_ORDER:
     if cat not in by_cat or not by_cat[cat]:
         continue
-    # 先过滤低于MIN_SCORE的
     qualified = [it for it in by_cat[cat] if it['score'] >= MIN_SCORE]
-    items = qualified[:8]
+    all_qualified.extend([(it, cat) for it in qualified])
+
+# 按分数降序，截断至 MAX_TOTAL
+all_qualified.sort(key=lambda x: x[0]['score'], reverse=True)
+capped = all_qualified[:MAX_TOTAL]
+
+# 按 CAT_ORDER 分组输出
+for cat in CAT_ORDER:
+    items = [it for it, c in capped if c == cat]
+    if not items:
+        continue
     emoji = CAT_EMOJI.get(cat, '📝')
-    lines.append(f"\n## {emoji} {cat}（{len(by_cat[cat])}条，精选{len(items)}条）\n")
+    lines.append(f"\n## {emoji} {cat}（{len(items)}条）\n")
     for it in items:
         pub_str = it['pub'].strftime('%m-%d %H:%M') if it['pub'] else ''
         eng = it['engagement']
@@ -320,7 +327,7 @@ for cat in CAT_ORDER:
             parts = [f"{k}：{v}" for k, v in eng.items()]
             eng_str = ' | ' + ' '.join(parts)
         lines.append(f"### [{it['title']}]({it['link']})")
-        lines.append(f"\n来源：{it['source']} \\| {pub_str} \\| 评分：**{it['score']}/10**{eng_str}\n")
+        lines.append(f"\n来源：{it['source']} \| {pub_str} \| 评分：**{it['score']}/10**{eng_str}\n")
         sent = first_sentence(it['text'])
         if sent:
             lines.append(f"\n> {sent}\n")
@@ -331,6 +338,7 @@ with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
     f.write(output)
 
 size = os.path.getsize(OUTPUT_FILE)
-qualified_total = sum(1 for it in recent if it['score'] >= MIN_SCORE)
+qualified_total = len(capped)
 print(f"\n完成！\n文件: {OUTPUT_FILE}\n大小: {size} bytes")
 print(f"总条数: {len(recent)}条 | 精选(≥{MIN_SCORE}分): {qualified_total}条")
+
