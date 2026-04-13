@@ -212,11 +212,11 @@ with ThreadPoolExecutor(max_workers=10) as ex:
 
 print(f"  去重后: {len(all_items)} 条")
 
-# 只保留昨天 2026-04-11
-yd_start = datetime(2026, 4, 11, 0, 0, 0, tzinfo=CST)
-yd_end = datetime(2026, 4, 11, 23, 59, 59, tzinfo=CST)
+# 只保留昨天
+yd_start = datetime(YESTERDAY.year, YESTERDAY.month, YESTERDAY.day, 0, 0, 0, tzinfo=CST)
+yd_end = datetime(YESTERDAY.year, YESTERDAY.month, YESTERDAY.day, 23, 59, 59, tzinfo=CST)
 recent = [it for it in all_items if it['pub'] and yd_start <= it['pub'] <= yd_end]
-print(f"  昨天 04-11: {len(recent)} 条")
+print(f"  昨天 {YD_SHORT}: {len(recent)} 条")
 
 # 排他性分类 + 打分 + 正文提取 + 互动指标
 seen_links = set()  # 额外去重：同链接只保留一条
