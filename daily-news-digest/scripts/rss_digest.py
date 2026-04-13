@@ -74,20 +74,33 @@ def score_article(title, content):
     score = 0
     case_kw = ['案例', '实战', '方法论', '数据', 'gmv', 'roi', '转化率', '投放效果',
                 '销售额', '增长', '操盘', '策略', '复盘', '分析报告', '洞察', '拆解',
-                '全链路', '种草', '收割', '同比增长', '突破', '暴跌', '首破', '新高']
+                '全链路', '种草', '收割', '同比增长', '突破', '暴跌', '首破', '新高',
+                '周报', '周刊', '月报', '季报', '年报', '榜单', '趋势', '报告']
     score += min(3, sum(1 for k in case_kw if k in t or k in c))
     media_kw = ['投放', '广告', '信息流', '关键词', '出价', '预算', '竞价', 'cpm', 'cpc',
-                'ocpm', '达播', '品牌自播', '投放策略', '代理商']
+                'ocpm', '达播', '品牌自播', '投放策略', '代理商', '媒介', '广告主']
     score += min(2, sum(1 for k in media_kw if k in t or k in c))
     ec_kw = ['电商', '零售', '选品', '供应链', '直播带货', '天猫', '淘宝', '跨境',
-             '亚马逊', 'shopify', '私域', '复购', '客单价', '电商平台', '拼多多']
+             '亚马逊', 'shopify', '私域', '复购', '客单价', '电商平台', '拼多多',
+             '京东', '外卖', '即时零售', '货架电商']
     score += min(2, sum(1 for k in ec_kw if k in t or k in c))
     ai_kw = ['ai', '人工智能', 'gpt', '大模型', '自动化', 'aigc', '数字人',
-              '智能投放', 'geo', 'ai营销', 'deepseek', 'claude', 'chatgpt']
+              '智能投放', 'geo', 'ai营销', 'deepseek', 'claude', 'chatgpt',
+              'genai', 'llm', 'agent', '智能体', '工作流']
     score += min(2, sum(1 for k in ai_kw if k in t or k in c))
     if len(content or '') > 500 and '。' in c:
         score += 1
-    return score
+    # 噪音惩罚
+    noise_kw = ['被抓', '被调查', '震惊', '热招', '招聘', '亿级卖家交流会', '峰会', '论坛',
+                 '沙龙', '活动报名', '扫码抢位', '席位紧张', '免费领取', '限时报名',
+                 '转发', '收藏', '点在看', '阅读原文']
+    score -= sum(2 for k in noise_kw if k in t)
+    # 低质指标惩罚
+    if any(k in t for k in ['马斯克', '特朗普', '普京', '拜登', '关税']):
+        score -= 1
+    if title and len(title) < 12:
+        score -= 1
+    return max(0, score)
 
 def is_noise(title):
     t = (title or '')
@@ -261,10 +274,14 @@ lines = [
     "\n---\n",
 ]
 
+MIN_SCORE = 3  # 低于此分的文章不进入精选
+
 for cat in CAT_ORDER:
     if cat not in by_cat or not by_cat[cat]:
         continue
-    items = by_cat[cat][:8]
+    # 先过滤低于MIN_SCORE的
+    qualified = [it for it in by_cat[cat] if it['score'] >= MIN_SCORE]
+    items = qualified[:8]
     emoji = CAT_EMOJI.get(cat, '📝')
     lines.append(f"\n## {emoji} {cat}（{len(by_cat[cat])}条，精选{len(items)}条）\n")
     for it in items:
@@ -286,5 +303,6 @@ with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
     f.write(output)
 
 size = os.path.getsize(OUTPUT_FILE)
+qualified_total = sum(1 for it in recent if it['score'] >= MIN_SCORE)
 print(f"\n完成！\n文件: {OUTPUT_FILE}\n大小: {size} bytes")
-print(f"总条数: {len(recent)}")
+print(f"总条数: {len(recent)}条 | 精选(≥{MIN_SCORE}分): {qualified_total}条")
