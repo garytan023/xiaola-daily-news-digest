@@ -15,47 +15,65 @@ python3 ~/.openclaw/workspace-dev/skills/daily-news-digest/scripts/rss_digest.py
 
 执行后输出：
 - 本地 Markdown：`~/.openclaw/workspace-dev/output/rss_daily_YYYY-MM-DD.md`
-- 飞书文档链接（打印到 stdout）
+- 精选条数统计（stdout）
 
 ## 工作流程
 
 1. **抓取** - 并行抓取 45 个 RSS 源（微信公众号 via RSSHub）
 2. **去重** - 按标题指纹排重 + 噪音词过滤
 3. **日期过滤** - 只保留昨天内容
-4. **排他分类** - 每个文章只归一个最相关分类（抖音/小红书/京东/阿里妈妈/电商零售/营销+AI/营销增长）
-5. **AI 评分** - 按营销洞察/案例+媒介投放+电商运营+AI营销打分
-6. **精选** - 每分类最多 8 条，按分数降序
-7. **生成文档** - 写入飞书云文档
-8. **通知** - 发飞书 DM 给 Gary，包含文档链接
+4. **排他分类** - 官方平台账号入平台分类；第三方账号按内容关键词入 Topic 分类
+5. **广告过滤** - 自动排除含"金冠俱乐部/独角招聘/热招中"等关键词的帖子
+6. **AI 评分** - 按营销洞察/案例(0-3) + 媒介投放(0-2) + 电商运营(0-2) + AI营销(0-2) + 内容质量(0-1)
+7. **精选** - MIN_SCORE=4 分；全球精选上限 40 条
+8. **生成文档** - 写入飞书云文档（链接内嵌每条新闻标题）
+9. **通知** - 发飞书 DM 给 Gary
+
+## 分类体系
+
+### 平台分类（仅官方账号）
+
+| 分类 | 来源示例 |
+|------|---------|
+| 京东 | 京东广告/京东黑板报/京东研究院 |
+| 字节 | 抖音官方/巨量引擎/千川 |
+| 小红书 | 小红书商业化/REDtech |
+| 腾讯 | 腾讯广告/微信派 |
+| 百度 | 百度营销 |
+
+> 若官方账号当天未发布，该分类留空。
+
+### Topic 分类（所有第三方账号）
+
+| 分类 | 触发关键词 |
+|------|-----------|
+| 营销+AI | AI/人工智能/大模型/DeepSeek/Agent/智能体 |
+| 电商零售 | 电商/零售/天猫/淘宝/亚马逊/拼多多/即时零售 |
+| 营销增长 | 其他营销/品牌/增长/趋势相关内容 |
+
+## 评分标准
+
+| 维度 | 分值 |
+|------|------|
+| 营销洞察/案例 | 0-3 |
+| 媒介投放 | 0-2 |
+| 电商运营 | 0-2 |
+| AI营销 | 0-2 |
+| 内容质量 | 0-1 |
+| **总分** | **0-10** |
+
+精选门槛：≥4分；精选上限：40条
 
 ## 关键文件
 
 - `scripts/rss_digest.py` - 主脚本
-- `scripts/rss_digest.py` 中 `OPML_FILE` 指向 `~/.openclaw/workspace-dev/data/wechat_rss_subscriptions.opml`
-- `OUTPUT_FILE` 输出到 `~/.openclaw/workspace-dev/output/rss_daily_YYYY-MM-DD.md`
+- `OPML_FILE` → `~/.openclaw/workspace-dev/data/wechat_rss_subscriptions.opml`
+- `OUTPUT_FILE` → `~/.openclaw/workspace-dev/output/rss_daily_YYYY-MM-DD.md`
 
-## Cron 调度（6:30 AM 每日）
+## Cron 调度
 
-```
-0 6 * * * python3 ~/.openclaw/workspace-dev/skills/daily-news-digest/scripts/rss_digest.py
-```
-
-## 发送通知
-
-脚本最后会打印飞书文档 URL。若需要程序化发送飞书消息，在 cron job 的 `agentTurn` prompt 中让 agent：
-1. 运行脚本获取文档 URL
-2. 用 `message(action=send, channel=feishu, to=user:ou_d635f4f3d20ac474cf8575038b5d2b33, message=...)` 发送摘要卡片
-
-## 分类说明
-
-排他性分类逻辑（按优先级）：
-1. 小红书关键词 → 小红书
-2. 京东关键词 → 京东
-3. 阿里妈妈关键词 → 阿里妈妈
-4. 抖音关键词 → 抖音
-5. AI相关关键词 → 营销+AI
-6. 电商/零售/直播关键词 → 电商零售
-7. 其他 → 营销增长
+- 时间：`30 6 * * *` (Asia/Shanghai, 6:30 AM)
+- 建议 sessionTarget: current（避免 isolated session 网络超时）
 
 ## 已知限制
 
