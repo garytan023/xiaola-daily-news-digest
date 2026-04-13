@@ -297,7 +297,8 @@ lines = [
     "\n---\n",
 ]
 
-MIN_SCORE = 3  # 低于此分的文章不进入精选
+MIN_SCORE = 4  # 低于此分的文章不进入精选
+AD_KEYWORDS = ['金冠俱乐部', '独角招聘', '热招中', '晋升通道', '员工福利', '招聘岗位']  # 明显广告帖直接过滤
 MAX_TOTAL = 40  # 精选总条数上限
 
 # 收集所有精选，再全局截断
@@ -305,7 +306,11 @@ all_qualified = []
 for cat in CAT_ORDER:
     if cat not in by_cat or not by_cat[cat]:
         continue
-    qualified = [it for it in by_cat[cat] if it['score'] >= MIN_SCORE]
+    qualified = [
+        it for it in by_cat[cat]
+        if it['score'] >= MIN_SCORE
+        and not any(k in (it['title'] or '') for k in AD_KEYWORDS)
+    ]
     all_qualified.extend([(it, cat) for it in qualified])
 
 # 按分数降序，截断至 MAX_TOTAL
