@@ -25,10 +25,31 @@ ATOM_NS = 'http://www.w3.org/2005/Atom'
 CONTENT_NS = 'http://purl.org/rss/1.0/modules/content/'
 
 CAT_EMOJI = {
-    '抖音': '🎵', '小红书': '📱', '京东': '🛍️', '阿里妈妈': '💰',
-    '电商零售': '🛒', '营销+AI': '🤖', '营销增长': '📈', '其他': '📝'
+    '京东': '🟣', '字节': '🔵', '小红书': '🔴', '腾讯': '🟢', '百度': '⚪',
+    '营销+AI': '🤖', '电商零售': '🛒', '营销增长': '📈'
 }
-CAT_ORDER = ['抖音', '小红书', '京东', '阿里妈妈', '电商零售', '营销+AI', '营销增长', '其他']
+CAT_ORDER = ['京东', '字节', '小红书', '腾讯', '百度', '营销+AI', '电商零售', '营销增长']
+
+# 来源账号 → 平台官方分类（优先级最高）
+SOURCE_PLATFORM_MAP = {
+    # 京东
+    "京东黑板报": "京东",
+    "京准通": "京东",
+    "京麦商家中心": "京东",
+    "京东研究院": "京东",
+    # 字节/抖音
+    "巨量引擎营销观察": "字节",
+    "巨量引擎营销科学": "字节",
+    "抖音电商营销观察": "字节",
+    # 小红书
+    "小红书种草学": "小红书",
+    "小红书商业动态": "小红书",
+    "小红书技术REDtech": "小红书",
+    # 腾讯
+    "腾讯广告": "腾讯",
+    # 百度
+    "百度营销观": "百度",
+}
 
 def tag(local):
     return f'{{{ATOM_NS}}}{local}'
@@ -47,24 +68,31 @@ def parse_date(text):
         except:
             return None
 
-def classify(title, content):
-    """排他性分类：匹配第一个关键词即返回，不重复归类"""
+def classify(title, content, source):
+    """排他性分类（按内容关键词）：
+    平台关键词优先 → topic关键词 → 营销增长兜底
+    """
     t = (title or '').lower()
     c = ((content or '')[:3000]).lower()
-    # 按优先级排，平台专属 > 电商 > AI > 营销
-    if any(k in t or k in c for k in ['小红书', 'xhs']):
-        return '小红书'
-    if any(k in t or k in c for k in ['京东', 'jd.com', '京东物流']):
+    # 平台关键词（排他）
+    if any(k in t or k in c for k in ['京东', 'jd.com', '京东物流', '京东黑板']):
         return '京东'
-    if any(k in t or k in c for k in ['阿里妈妈', 'ali mama', '直通车', '引力魔方', '万相台']):
-        return '阿里妈妈'
-    if any(k in t or k in c for k in ['抖音', 'douyin', 'tiktok', '巨量引擎', '千川', 'dou+', '鲁班']):
-        return '抖音'
+    if any(k in t or k in c for k in ['字节', '抖音', 'douyin', 'tiktok', '巨量引擎', '千川', 'dou+', '鲁班', 'tiktok']):
+        return '字节'
+    if any(k in t or k in c for k in ['小红书', 'xhs', 'redtech']):
+        return '小红书'
+    if any(k in t or k in c for k in ['腾讯', '微信', 'wechat', '朋友圈', '小程序']):
+        return '腾讯'
+    if any(k in t or k in c for k in ['百度', 'baidu']):
+        return '百度'
+    # topic 关键词（排他）
     if any(k in t or k in c for k in ['ai', '人工智能', 'gpt', '大模型', '自动化', 'aigc', '数字人',
-                                          'deepseek', 'chatgpt', '智能投放', 'geo', 'ai营销', 'claude']):
+                                          'deepseek', 'chatgpt', '智能投放', 'geo', 'ai营销', 'claude',
+                                          'genai', 'llm', 'agent', '智能体', '工作流', 'gpt-4', 'o1', 'o3', 'gemini']):
         return '营销+AI'
     if any(k in t or k in c for k in ['电商', '零售', '直播带货', '天猫', '淘宝', '选品', '跨境',
-                                          '亚马逊', 'shopify', '私域', '拼多多', '唯品会', '直播']):
+                                          '亚马逊', 'shopify', '私域', '拼多多', '唯品会', '即时零售',
+                                          '货架电商', '跨境电商', '电商平台', '电商运营']):
         return '电商零售'
     return '营销增长'
 
@@ -237,7 +265,7 @@ for it in recent:
     plain = extract_plain_text(it['content'])
     it['text'] = plain
     it['score'] = score_article(it['title'], plain)
-    it['cat'] = classify(it['title'], plain)
+    it['cat'] = classify(it['title'], plain, it['source'])
     it['engagement'] = extract_engagement(plain)
 
 # 再次去重（排他性分类后，同链接不重复）
